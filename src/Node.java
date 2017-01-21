@@ -1,67 +1,117 @@
-//import java.io.*;
-//import java.net.ServerSocket;
-//import java.net.Socket;
-//import java.util.List;
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.*;
+
+public class Node {
+    private Map<Socket, PrintWriter> socketPrintWriterMap = new HashMap<>();
+    private List<Socket> sockets = new ArrayList<>();
+    private ServerSocket serSock;
+
+    public Node( int portNumber ) {
+        createSocket( portNumber );
+    }
+
+    private void listenTo( final Socket sock ) {
+        new Thread( () -> {
+
+            BufferedReader receiveRead = null;
+            String receiveMessage;
+
+            try {
+                InputStream istream = sock.getInputStream();
+                receiveRead = new BufferedReader( new InputStreamReader( istream ) );
+                if ( ( receiveMessage = receiveRead.readLine() ) != null ) {
+                    System.out.println( sock.getPort() + "  " + receiveMessage );
+                }
+            } catch ( IOException e ) {
+                e.printStackTrace();
+            }
+
+        } ).start();
+    }
+
+    private void createOutputStreamFor( Socket sock ) throws IOException {
+        OutputStream outputStream = sock.getOutputStream();
+        PrintWriter printWriter = new PrintWriter( outputStream, true );
+        socketPrintWriterMap.put( sock, printWriter );
+    }
+
+    private void createSocket( int portNumber ) {
+        try {
+            serSock = new ServerSocket( portNumber );
+        } catch ( IOException e ) {
+            e.printStackTrace();
+        }
+
+    }
+
+    public void start( int numberOfNodes, List<Integer> portNumbers ) throws IOException, InterruptedException {
+        connectTo( portNumbers );
+        for ( int i = 0; i < numberOfNodes; i++ ) {
+            Socket socket;
+//            try {
+                socket = serSock.accept();
+//            } catch ( Exception e ) {
 //
-//public class Node {
-//    private final int portNumber;
-//    private final List<Node> nodes;
-//    private boolean flag;
+//                System.out.println( "Unable To connect to " + portNumbers.get( i ) + ", Retrying in 5 seconds" );
+//                Thread.sleep( 5000 );
+//                socket = new Socket( "127.0.0.1", portNumbers.get( i ) );
 //
-//    public Node(int portNumber, List<Node> nodes) throws Exception {
-//        this.portNumber = portNumber;
-//        this.nodes = nodes;
-////        String data = "Toobie ornaught toobie";
-////        try {
-////            ServerSocket srvr = new ServerSocket(portNumber);
-//////            System.out.print("Server has connected!\n");
-//////            PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
-//////            System.out.print("Sending string: '" + data + "'\n");
-//////            out.print(data);
-//////            out.close();
-////            Socket skt = srvr.accept();
-////
-////            while ( !flag ) {
-////                PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
-////
-////            }
-////            skt.close();
-////            srvr.close();
-////        }
-////        catch(Exception e) {
-////            System.out.print("Whoops! It didn't work!\n");
-////        }
-//        ServerSocket sersock = new ServerSocket(portNumber);
-//        System.out.println("Server  ready for chatting");
-//        Socket sock = sersock.accept( );
-//        sock.
-//
-//        Socket sock = new Socket("127.0.0.1", 3000);
-//        // reading from keyboard (keyRead object)
-//        BufferedReader keyRead = new BufferedReader(new InputStreamReader(System.in));
-//        // sending to client (pwrite object)
-//        OutputStream ostream = sock.getOutputStream();
-//        PrintWriter pwrite = new PrintWriter(ostream, true);
-//
-//        // receiving from server ( receiveRead  object)
-//        InputStream istream = sock.getInputStream();
-//        BufferedReader receiveRead = new BufferedReader(new InputStreamReader(istream));
-//
-//        System.out.println("Start the chitchat, type and press Enter key");
-//
-//        String receiveMessage, sendMessage;
-//        while(true)
-//        {
-//            sendMessage = keyRead.readLine();  // keyboard reading
-//            pwrite.println(sendMessage);       // sending to server
-//            pwrite.flush();                    // flush the data
-//            if((receiveMessage = receiveRead.readLine()) != null) //receive from server
-//            {
-//                System.out.println(receiveMessage); // displaying at DOS prompt
 //            }
-//        }
-//    }
-//}
-//
-//
-//}
+            System.out.println( "Connected To::" + socket.getPort() );
+            sockets.add( socket );
+            listenTo( socket );
+            createOutputStreamFor( socket );
+
+        }
+        startWriteThread();
+
+    }
+
+    private void connectTo( List<Integer> portNumbers ) {
+        new Thread( () -> {
+            Iterator iterator = portNumbers.iterator();
+            while ( iterator.hasNext() ) {
+                Integer portNumber = (Integer) iterator.next();
+
+                try {
+                    Socket socket = new Socket( "127.0.0.1", portNumber );
+                    listenTo( socket );
+                } catch ( Exception e ) {
+
+                    try {
+                        System.out.println( "Unable To connect to " + portNumber + ", Retrying in 10 seconds" );
+                        Thread.sleep( 10000 );
+                        Socket socket = new Socket( "127.0.0.1", portNumber );
+                        listenTo( socket );
+                    } catch ( Exception e1 ) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        } ).start();
+    }
+
+    private void startWriteThread() {
+        BufferedReader keyRead = new BufferedReader( new InputStreamReader( System.in ) );
+
+        new Thread( () -> {
+            while ( true ) {
+                try {
+                    String sendMessage = keyRead.readLine();
+                    int clientNumber = Integer.parseInt( sendMessage.split( " " )[0] );
+                    String msg = sendMessage.split( " " )[1];
+                    PrintWriter printWriter = null;
+                    printWriter = socketPrintWriterMap.get( sockets.get( clientNumber - 1 ) );
+                    printWriter.println( msg );
+                    printWriter.flush();
+                } catch ( IOException e ) {
+                    e.printStackTrace();
+                }
+
+            }
+        } ).start();
+
+    }
+}
